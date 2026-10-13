@@ -12,11 +12,13 @@ Direct play in the browser still runs to the end of the file. If [File Transform
 
 ## Install
 
+Add this repository under **Dashboard → Plugins → Repositories**, then install **Runtime Trim** from the catalog and restart:
+
 ```
-dotnet build -c Release
+https://intro-skipper.org/manifest.json
 ```
 
-Copy `Jellyfin.Plugin.RuntimeTrim/bin/Release/net10.0/Jellyfin.Plugin.RuntimeTrim.dll` into a `Runtime Trim` folder in the server's plugin directory and restart.
+To build from source instead, run `dotnet build -c Release` and copy `Jellyfin.Plugin.RuntimeTrim/bin/Release/net10.0/Jellyfin.Plugin.RuntimeTrim.dll` into a `Runtime Trim` folder in the server's plugin directory, then restart.
 
 New and changed files are trimmed as they are scanned. For files already in the library, run **Refresh metadata → Search for missing metadata** on the library or item.
 
@@ -24,7 +26,7 @@ New and changed files are trimmed as they are scanned. For files already in the 
 
 Open **Dashboard → Plugins → Runtime Trim → Settings**. The page lists every library except books and collections, all checked by default. Unchecked libraries keep their full runtime. Changes apply as files are scanned. To apply them to files already in a library, refresh it with **Search for missing metadata** as above. Renaming a library gives it a new id, so a renamed library is checked again.
 
-Beside each library is the number of its videos that are trimmed. Click it to list them with their runtime before and after the trim. The plugin records each trim in `runtime-trim.json` in Jellyfin's data directory. Videos trimmed by an earlier version of the plugin appear once their library is refreshed with **Search for missing metadata**.
+Beside each library is the number of its videos that are trimmed. Click it to list them with their runtime before and after the trim. The plugin records each trim in `runtime-trim.json` in Jellyfin's data directory.
 
 ## Uninstall
 
