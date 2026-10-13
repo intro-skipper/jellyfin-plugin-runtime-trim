@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.*" />
+    <PackageReference Include="Jellyfin.Model" Version="12.1.*" />
+    <!-- File Transformation takes a JObject payload. The server ships Newtonsoft, so only this plugin's DLL is packaged. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="runtimeTrim.js" />
+    <EmbeddedResource Include="configPage.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jellyfin.Plugin.RuntimeTrim.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Jellyfin.Plugin.RuntimeTrim.Tests/Jellyfin.Plugin.RuntimeTrim.Tests.csproj" />
+  <Project Path="Jellyfin.Plugin.RuntimeTrim/Jellyfin.Plugin.RuntimeTrim.csproj" />
+</Solution>

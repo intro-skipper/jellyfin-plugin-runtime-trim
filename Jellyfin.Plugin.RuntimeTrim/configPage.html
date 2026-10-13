@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Runtime Trim</title>
+</head>
+<body>
+    <div id="RuntimeTrimConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-checkbox">
+        <style>
+            .runtimeTrimRow { display: flex; align-items: center; gap: 1em; }
+            .runtimeTrimRow > label { flex: 1; width: auto; margin: 0.5em 0; }
+            .runtimeTrimToggle { display: flex; align-items: center; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+            .runtimeTrimToggle[aria-expanded="true"] .material-icons { transform: rotate(180deg); }
+            .runtimeTrimVideos { margin: 0 0 1em 1.8em; }
+            .runtimeTrimVideos table { width: 100%; border-collapse: collapse; }
+            .runtimeTrimVideos td { padding: 0.3em 1em 0.3em 0; border-bottom: 1px solid rgba(128, 128, 128, 0.25); font-variant-numeric: tabular-nums; }
+            .runtimeTrimVideos td + td { white-space: nowrap; }
+            .runtimeTrimVideos td:last-child { padding-right: 0; text-align: right; }
+            .runtimeTrimVideos a { color: inherit; text-decoration: none; }
+            .runtimeTrimVideos a:hover { text-decoration: underline; }
+            .runtimeTrimSeries td { padding-top: 0.8em; border-bottom: 0; font-weight: 600; }
+            .runtimeTrimMuted { opacity: 0.6; font-weight: normal; }
+        </style>
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="RuntimeTrimConfigForm">
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">Trim runtimes in</h2>
+                        <div id="RuntimeTrimLibraries"></div>
+                        <div class="fieldDescription">Applies to files as they are scanned. For files already in a library, refresh its metadata with Search for missing metadata.</div>
+                    </div>
+                    <button is="emby-button" type="submit" class="raised button-submit block">
+                        <span>Save</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            // jellyfin-web runs this page through its translator, which replaces every dollar sign
+            // followed by a brace, so strings are joined with + rather than template literals.
+            (() => {
+                const pluginId = '997a526b-ac90-4198-8353-450a9f74f4d5';
+                // Library types that cannot hold videos. Music can, through theme videos and other extras.
+                const nonVideoTypes = ['books', 'boxsets'];
+                const page = document.querySelector('#RuntimeTrimConfigPage');
+                const list = page.querySelector('#RuntimeTrimLibraries');
+                const save = page.querySelector('.button-submit');
+
+                // Builds an element. String children become text, so names need no escaping.
+                const el = (tag, props, ...children) => {
+                    const node = Object.assign(document.createElement(tag), props);
+                    node.append(...children);
+                    return node;
+                };
+
+                const pad = n => String(n).padStart(2, '0');
+
+                // "1:41:20" or "24:41" from ticks of 100 ns.
+                const time = ticks => {
+                    const seconds = Math.round(ticks / 1e7);
+                    const hours = Math.floor(seconds / 3600);
+                    const minutes = Math.floor(seconds / 60) % 60;
+                    return (hours ? hours + ':' + pad(minutes) : minutes) + ':' + pad(seconds % 60);
+                };
+
+                const cut = video => video.FileTicks - video.VideoTicks;
+                const link = (id, ...children) => el('a', { href: '#/details?id=' + id + '&serverId=' + ApiClient.serverId() }, ...children);
+
+                // A video's title, its runtime before and after the trim, and the cut.
+                const videoRow = (video, ...title) => el('tr', {},
+                    el('td', {}, link(video.Id, ...title)),
+                    el('td', {}, time(video.FileTicks) + ' → ' + time(video.VideoTicks)),
+                    el('td', {}, time(cut(video))));
+
+                // Movies and other videos with the largest cut first, then each series by name
+                // with its episodes in order.
+                const videoRows = videos => {
+                    const series = new Map();
+                    for (const video of videos.filter(video => video.SeriesId)) {
+                        series.set(video.SeriesId, [...(series.get(video.SeriesId) ?? []), video]);
+                    }
+
+                    return [
+                        ...videos.filter(video => !video.SeriesId)
+                            .sort((a, b) => cut(b) - cut(a))
+                            .map(video => videoRow(video, video.Year ? video.Name + ' (' + video.Year + ')' : video.Name)),
+                        ...[...series.values()]
+                            .sort(([a], [b]) => (a.SeriesName ?? '').localeCompare(b.SeriesName ?? ''))
+                            .flatMap(episodes => [
+                                el('tr', { className: 'runtimeTrimSeries' }, el('td', { colSpan: 3 },
+                                    link(episodes[0].SeriesId, episodes[0].SeriesName ?? ''),
+                                    ' ',
+                                    el('span', { className: 'runtimeTrimMuted' }, episodes.length === 1 ? '1 episode' : episodes.length + ' episodes'))),
+                                ...episodes
+                                    .sort((a, b) => (a.Season ?? 0) - (b.Season ?? 0) || (a.Episode ?? 0) - (b.Episode ?? 0))
+                                    .map(episode => videoRow(episode,
+                                        el('span', { className: 'runtimeTrimMuted' }, episode.Season != null && episode.Episode != null ? 'S' + pad(episode.Season) + 'E' + pad(episode.Episode) + ' ' : ''),
+                                        episode.Name)),
+                            ]),
+                    ];
+                };
+
+                // A video library's checkbox, checked unless excluded. When the library has trimmed
+                // videos, a toggle beside it lists them.
+                const libraryRow = (folder, excluded, videos) => {
+                    const label = document.createElement('label');
+                    label.innerHTML = '<input type="checkbox" is="emby-checkbox"><span></span>';
+                    const [checkbox, name] = label.children;
+                    checkbox.value = folder.ItemId;
+                    checkbox.checked = !excluded;
+                    name.textContent = folder.Name;
+                    if (!videos.length) {
+                        return el('div', { className: 'runtimeTrimRow' }, label);
+                    }
+
+                    const table = el('table', { hidden: true }, el('tbody', {}, ...videoRows(videos)));
+                    const toggle = el('button', { type: 'button', className: 'runtimeTrimToggle' },
+                        videos.length + ' trimmed',
+                        el('span', { className: 'material-icons expand_more' }));
+                    toggle.setAttribute('aria-expanded', 'false');
+                    toggle.addEventListener('click', () => {
+                        table.hidden = !table.hidden;
+                        toggle.setAttribute('aria-expanded', String(!table.hidden));
+                    });
+
+                    return el('div', {},
+                        el('div', { className: 'runtimeTrimRow' }, label, toggle),
+                        el('div', { className: 'runtimeTrimVideos' },
+                            ...(excluded ? [el('div', { className: 'fieldDescription' }, 'Excluded. These keep their trimmed runtime until the library is refreshed with Search for missing metadata.')] : []),
+                            table));
+                };
+
+                // Both APIs write ids as 32 hex digits without dashes, so they compare as strings. A
+                // library whose folder is not created yet has no id. Save stays disabled until the
+                // list loads, since saving an empty list would drop every exclusion.
+                const load = async () => {
+                    save.disabled = true;
+                    Dashboard.showLoadingMsg();
+                    try {
+                        const [config, folders, trimmed] = await Promise.all([
+                            ApiClient.getPluginConfiguration(pluginId),
+                            ApiClient.getVirtualFolders(),
+                            ApiClient.getJSON(ApiClient.getUrl('RuntimeTrim/Trimmed')),
+                        ]);
+                        list.replaceChildren(...folders
+                            .filter(folder => folder.ItemId && !nonVideoTypes.includes(folder.CollectionType))
+                            .map(folder => libraryRow(
+                                folder,
+                                config.ExcludedLibraryIds.includes(folder.ItemId),
+                                trimmed.filter(video => video.LibraryId === folder.ItemId))));
+                        save.disabled = false;
+                        Dashboard.hideLoadingMsg();
+                    } catch (error) {
+                        Dashboard.processErrorResponse(error);
+                    }
+                };
+
+                page.addEventListener('pageshow', load);
+
+                // Saving also drops exclusions of libraries that no longer exist. The reload shows
+                // the note on a newly excluded library.
+                page.querySelector('#RuntimeTrimConfigForm').addEventListener('submit', async e => {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    try {
+                        const config = await ApiClient.getPluginConfiguration(pluginId);
+                        config.ExcludedLibraryIds = [...list.querySelectorAll('input:not(:checked)')].map(checkbox => checkbox.value);
+                        Dashboard.processPluginConfigurationUpdateResult(await ApiClient.updatePluginConfiguration(pluginId, config));
+                        await load();
+                    } catch (error) {
+                        Dashboard.processErrorResponse(error);
+                    }
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
