@@ -5,7 +5,7 @@ version: "0.1.0.0"
 targetAbi: "12.1.0.0"
 framework: "net10.0"
 owner: "intro-skipper"
-imageUrl: "https://raw.githubusercontent.com/intro-skipper/jellyfin-plugin-runtime-trim/main/images/icon.png"
+imageUrl: "https://raw.githubusercontent.com/intro-skipper/jellyfin-plugin-runtime-trim/main/images/logo.png"
 overview: "Ends playback when the video ends, even if an audio track runs longer"
 description: >
   Some releases mux an audio track that runs past the end of the video, so playback continues on
@@ -17,5 +17,5 @@ category: "General"
 artifacts:
   - "Jellyfin.Plugin.RuntimeTrim.dll"
 
-changelog: >
+changelog: |
   Initial release.
