@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jellyfin.Plugin.RuntimeTrim;
 
 /// <summary>
-/// Serves the trimmed videos that <c>configPage.html</c> lists under each library.
+/// Serves <c>configPage.html</c>: the trimmed videos it lists under each library, and whether
+/// the web script is registered.
 /// </summary>
 [ApiController]
 [Authorize(Policy = Policies.RequiresElevation)]
@@ -46,6 +47,13 @@ public class TrimmedController(TrimStore store, ILibraryManager libraryManager) 
                 trim.VideoTicks);
         }
     }
+
+    /// <summary>
+    /// Gets whether the web script that ends direct play was registered with File Transformation.
+    /// </summary>
+    /// <returns><see langword="false"/> when File Transformation is missing or failed to register it.</returns>
+    [HttpGet("WebScript")]
+    public bool GetWebScript() => WebInjector.Registered;
 }
 
 /// <summary>

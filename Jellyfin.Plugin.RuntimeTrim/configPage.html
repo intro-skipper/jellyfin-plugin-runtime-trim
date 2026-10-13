@@ -20,10 +20,16 @@
             .runtimeTrimVideos a:hover { text-decoration: underline; }
             .runtimeTrimSeries td { padding-top: 0.8em; border-bottom: 0; font-weight: 600; }
             .runtimeTrimMuted { opacity: 0.6; font-weight: normal; }
+            .runtimeTrimWarning { display: flex; align-items: center; gap: 0.5em; }
+            .runtimeTrimWarning[hidden] { display: none; }
         </style>
         <div data-role="content">
             <div class="content-primary">
                 <form id="RuntimeTrimConfigForm">
+                    <p id="RuntimeTrimWarning" class="runtimeTrimWarning" hidden>
+                        <span class="material-icons warning" aria-hidden="true"></span>
+                        <span><a class="button-link" href="https://github.com/IAmParadox27/jellyfin-plugin-file-transformation" target="_blank" rel="noopener">File Transformation</a> is not active, so direct play in the web client runs to the end of the file.</span>
+                    </p>
                     <div class="verticalSection">
                         <h2 class="sectionTitle">Trim runtimes in</h2>
                         <div id="RuntimeTrimLibraries"></div>
@@ -44,6 +50,7 @@
                 const nonVideoTypes = ['books', 'boxsets'];
                 const page = document.querySelector('#RuntimeTrimConfigPage');
                 const list = page.querySelector('#RuntimeTrimLibraries');
+                const warning = page.querySelector('#RuntimeTrimWarning');
                 const save = page.querySelector('.button-submit');
 
                 // Builds an element. String children become text, so names need no escaping.
@@ -132,16 +139,19 @@
 
                 // Both APIs write ids as 32 hex digits without dashes, so they compare as strings. A
                 // library whose folder is not created yet has no id. Save stays disabled until the
-                // list loads, since saving an empty list would drop every exclusion.
+                // list loads, since saving an empty list would drop every exclusion. The warning
+                // shows when File Transformation did not take the web script.
                 const load = async () => {
                     save.disabled = true;
                     Dashboard.showLoadingMsg();
                     try {
-                        const [config, folders, trimmed] = await Promise.all([
+                        const [config, folders, trimmed, webScript] = await Promise.all([
                             ApiClient.getPluginConfiguration(pluginId),
                             ApiClient.getVirtualFolders(),
                             ApiClient.getJSON(ApiClient.getUrl('RuntimeTrim/Trimmed')),
+                            ApiClient.getJSON(ApiClient.getUrl('RuntimeTrim/WebScript')),
                         ]);
+                        warning.hidden = webScript;
                         list.replaceChildren(...folders
                             .filter(folder => folder.ItemId && !nonVideoTypes.includes(folder.CollectionType))
                             .map(folder => libraryRow(

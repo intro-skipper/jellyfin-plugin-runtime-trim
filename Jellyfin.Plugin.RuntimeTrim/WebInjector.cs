@@ -18,6 +18,12 @@ internal static class WebInjector
     });
 
     /// <summary>
+    /// Gets a value indicating whether <see cref="Register"/> succeeded, so the script ends
+    /// direct play. The settings page warns when it did not.
+    /// </summary>
+    internal static bool Registered { get; private set; }
+
+    /// <summary>
     /// Registers <see cref="Transform"/> with File Transformation. It lives in another plugin
     /// load context, so it is reached by reflection.
     /// </summary>
@@ -42,6 +48,7 @@ internal static class WebInjector
             { "callbackClass", typeof(WebInjector).FullName },
             { "callbackMethod", nameof(Transform) },
         }]);
+        Registered = true;
         return true;
     }
 
