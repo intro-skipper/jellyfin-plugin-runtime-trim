@@ -4,25 +4,35 @@ using System.Globalization;
 namespace Jellyfin.Plugin.RuntimeTrim;
 
 /// <summary>
-/// Reads where a file's first video stream ends with ffprobe.
+/// A video's runtime as Jellyfin probed it from the container, and where its video stream ends.
+/// <see cref="ProbeAsync"/> measures it with ffprobe and decides whether the gap is padding.
 /// </summary>
-internal static class VideoEnd
+/// <param name="FileTicks">The runtime before the trim.</param>
+/// <param name="VideoTicks">The runtime after the trim.</param>
+public readonly record struct Trim(long FileTicks, long VideoTicks)
 {
+    // Containers often end a fraction of a second after the video. Only trim real padding.
+    // runtimeTrim.js derives MIN_TRIM_SECONDS from this.
+    private static readonly TimeSpan MinimumTrim = TimeSpan.FromSeconds(5);
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Runs ffprobe on <paramref name="path"/> and reads its first video stream.
+    /// Runs ffprobe on <paramref name="path"/> and reads where its first video stream ends.
     /// </summary>
+    /// <param name="ffprobePath">The server's ffprobe.</param>
+    /// <param name="path">The video file.</param>
+    /// <param name="runtime">The runtime Jellyfin probed from the whole container.</param>
+    /// <param name="cancellationToken">Stops ffprobe.</param>
     /// <returns>
-    /// Where the video stream ends, measured from the container's start like the runtime, or
-    /// <see langword="null"/> when the file has no video stream or reports no per-stream length.
+    /// The trim, or <see langword="null"/> when the runtime should stay: see <see cref="Parse"/>.
     /// </returns>
     /// <exception cref="OperationCanceledException">
     /// <paramref name="cancellationToken"/> was cancelled or ffprobe ran longer than 30 seconds.
     /// ffprobe is killed first.
     /// </exception>
     /// <exception cref="InvalidOperationException">ffprobe did not start.</exception>
-    public static async Task<TimeSpan?> ProbeAsync(string ffprobePath, string path, CancellationToken cancellationToken)
+    internal static async Task<Trim?> ProbeAsync(string ffprobePath, string path, TimeSpan runtime, CancellationToken cancellationToken)
     {
         // "V" skips attached pictures such as MP4 cover art.
         string[] args = ["-v", "error", "-select_streams", "V:0", "-show_entries", "stream=start_time,duration:stream_tags=DURATION,DURATION-eng:format=start_time", path];
@@ -40,7 +50,7 @@ internal static class VideoEnd
         {
             var output = await process.StandardOutput.ReadToEndAsync(timeout.Token).ConfigureAwait(false);
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-            return Parse(output);
+            return Parse(output, runtime);
         }
         catch (OperationCanceledException)
         {
@@ -57,10 +67,11 @@ internal static class VideoEnd
     /// own Matroska muxer writes the end time there instead, so a late-starting video trims less.
     /// </summary>
     /// <returns>
-    /// The video's start plus its length, less the container's start, or <see langword="null"/>
-    /// when the output has no video length.
+    /// The trim to where the video ends, its start plus its length less the container's start, or
+    /// <see langword="null"/> when the output has no video length, the file runs less than 5 seconds
+    /// past the video, or the video ends before half the runtime.
     /// </returns>
-    internal static TimeSpan? Parse(string output)
+    internal static Trim? Parse(string output, TimeSpan runtime)
     {
         // The runtime counts from the container's start, which MPEG-TS puts well past zero.
         var videoStart = TimeSpan.Zero;
@@ -90,7 +101,10 @@ internal static class VideoEnd
             }
         }
 
-        return videoStart - containerStart + (length ?? tagged);
+        // A video ending before half the file is a still image or a broken track, not padding.
+        return videoStart - containerStart + (length ?? tagged) is { } end && runtime - end >= MinimumTrim && end >= runtime / 2
+            ? new Trim(runtime.Ticks, end.Ticks)
+            : null;
     }
 
     // "00:23:40.087000000". TimeSpan.Parse rejects more than 7 fractional digits.

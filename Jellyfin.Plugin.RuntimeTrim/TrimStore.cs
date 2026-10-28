@@ -93,10 +93,3 @@ public sealed partial class TrimStore(string path, ILogger<TrimStore> logger)
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not read the list of trimmed videos from {Path}, so it starts empty")]
     private static partial void LogLoadFailed(ILogger logger, Exception exception, string path);
 }
-
-/// <summary>
-/// A video's runtime as Jellyfin probed it from the container, and where its video stream ends.
-/// </summary>
-/// <param name="FileTicks">The runtime before the trim.</param>
-/// <param name="VideoTicks">The runtime after the trim.</param>
-public readonly record struct Trim(long FileTicks, long VideoTicks);

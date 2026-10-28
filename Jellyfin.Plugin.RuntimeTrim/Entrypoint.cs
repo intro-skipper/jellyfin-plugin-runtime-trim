@@ -24,10 +24,6 @@ internal sealed partial class Entrypoint(
     TrimStore trims,
     ILogger<Entrypoint> logger) : BackgroundService
 {
-    // Containers often end a fraction of a second after the video. Only trim real padding.
-    // runtimeTrim.js derives MIN_TRIM_SECONDS from this.
-    private static readonly TimeSpan MinimumTrim = TimeSpan.FromSeconds(5);
-
     // Probed one at a time, so a large first scan does not pile up ffprobe processes.
     private readonly Channel<Video> _imported = Channel.CreateUnbounded<Video>();
 
@@ -88,22 +84,19 @@ internal sealed partial class Entrypoint(
                 return;
             }
 
-            var videoEnd = await VideoEnd.ProbeAsync(mediaEncoder.ProbePath, video.Path, cancellationToken).ConfigureAwait(false);
             var runtime = TimeSpan.FromTicks(video.RunTimeTicks ?? 0);
-
-            // A video ending before half the file is a still image or a broken track, not padding.
-            if (videoEnd is not { } end || runtime - end < MinimumTrim || end < runtime / 2)
+            if (await Trim.ProbeAsync(mediaEncoder.ProbePath, video.Path, runtime, cancellationToken).ConfigureAwait(false) is not { } trim)
             {
                 return;
             }
 
-            video.RunTimeTicks = end.Ticks;
+            video.RunTimeTicks = trim.VideoTicks;
 
             // None rather than MetadataEdit: an edit also rewrites NFO files and forces every image
             // to be re-processed.
             await video.UpdateToRepositoryAsync(ItemUpdateType.None, cancellationToken).ConfigureAwait(false);
-            LogTrimmed(logger, video.Path, runtime, end);
-            trims.Set(video.Id, new Trim(runtime.Ticks, end.Ticks));
+            LogTrimmed(logger, video.Path, runtime, TimeSpan.FromTicks(trim.VideoTicks));
+            trims.Set(video.Id, trim);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
