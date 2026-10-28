@@ -45,7 +45,6 @@ internal sealed partial class Entrypoint(
         }
 
         libraryManager.ItemUpdated += OnItemUpdated;
-        libraryManager.ItemRemoved += OnItemRemoved;
         try
         {
             await foreach (var video in _imported.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
@@ -56,7 +55,6 @@ internal sealed partial class Entrypoint(
         finally
         {
             libraryManager.ItemUpdated -= OnItemUpdated;
-            libraryManager.ItemRemoved -= OnItemRemoved;
         }
     }
 
@@ -70,8 +68,6 @@ internal sealed partial class Entrypoint(
             _imported.Writer.TryWrite(video);
         }
     }
-
-    private void OnItemRemoved(object? sender, ItemChangeEventArgs e) => trims.Remove(e.Item.Id);
 
     private async Task TrimAsync(Video video, CancellationToken cancellationToken)
     {

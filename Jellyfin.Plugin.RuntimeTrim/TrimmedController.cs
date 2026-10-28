@@ -23,19 +23,16 @@ public class TrimmedController(TrimStore store, ILibraryManager libraryManager) 
     [HttpGet("Trimmed")]
     public IEnumerable<TrimmedVideo> GetTrimmed()
     {
-        foreach (var (id, trim) in store.Trims)
+        foreach (var (video, trim) in store.GetCurrent())
         {
-            // A re-probe resets the runtime, and the trim is not re-applied in an excluded library.
-            if (libraryManager.GetItemById(id) is not Video video
-                || video.RunTimeTicks != trim.VideoTicks
-                || libraryManager.GetCollectionFolders(video).FirstOrDefault() is not { } library)
+            if (libraryManager.GetCollectionFolders(video).FirstOrDefault() is not { } library)
             {
                 continue;
             }
 
             var episode = video as Episode;
             yield return new TrimmedVideo(
-                id,
+                video.Id,
                 library.Id,
                 video.Name,
                 video.ProductionYear,

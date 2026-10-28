@@ -1,5 +1,6 @@
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton(services => new TrimStore(
             Path.Join(services.GetRequiredService<IApplicationPaths>().DataPath, "runtime-trim.json"),
+            services.GetRequiredService<ILibraryManager>().GetItemById,
             services.GetRequiredService<ILogger<TrimStore>>()));
         serviceCollection.AddHostedService<Entrypoint>();
     }
