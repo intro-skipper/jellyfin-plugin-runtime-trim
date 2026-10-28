@@ -12,7 +12,6 @@ namespace Jellyfin.Plugin.RuntimeTrim;
 public readonly record struct Trim(long FileTicks, long VideoTicks)
 {
     // Containers often end a fraction of a second after the video. Only trim real padding.
-    // runtimeTrim.js derives MIN_TRIM_SECONDS from this.
     private static readonly TimeSpan MinimumTrim = TimeSpan.FromSeconds(5);
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
