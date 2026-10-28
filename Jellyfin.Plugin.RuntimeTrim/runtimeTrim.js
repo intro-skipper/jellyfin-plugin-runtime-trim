@@ -1,11 +1,8 @@
 // Ends direct play at the item's runtime. The plugin trims the runtime of files whose audio
 // runs past the video, but the browser still plays the file to its container end. Seeking to
-// the end fires the element's native `ended`, so jellyfin-web finishes playback as usual.
+// the end fires the element's native `ended`, so jellyfin-web finishes playback as usual. An
+// untrimmed file reaches its runtime only at its end, where the seek changes nothing.
 (() => {
-    // The server trims only when the file runs at least 5 s past the video. Acting from 4 s
-    // absorbs rounding between the browser's duration and ffprobe's, while leaving untrimmed
-    // files with a small mismatch alone.
-    const MIN_TRIM_SECONDS = 4;
     const runtimes = new Map();
 
     // Runtime in seconds for a direct play URL, or undefined for anything else (HLS uses a blob: URL).
@@ -37,7 +34,7 @@
         // jellyfin-web reuses one element for the whole queue, so the item may change during the lookup.
         const src = video.currentSrc;
         const runtime = await runtimeOf(src);
-        if (video.currentSrc === src && runtime && video.duration - runtime >= MIN_TRIM_SECONDS && video.currentTime >= runtime) {
+        if (video.currentSrc === src && runtime && video.currentTime >= runtime) {
             video.currentTime = video.duration;
         }
     }, true);
